@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>RM-REMOTE MASTER | Control Center</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root { --gold: #ffcc00; --bg: #0d0e12; --card: #1c1f26; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; padding: 20px; display: flex; justify-content: center; margin: 0; }
+        .container { max-width: 480px; width: 100%; background: var(--card); border-radius: 20px; padding: 25px; border: 1px solid #333; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .header { text-align: center; border-bottom: 2px solid var(--gold); margin-bottom: 20px; padding-bottom: 10px; }
+        .header h2 { margin: 0; color: var(--gold); letter-spacing: 2px; text-transform: uppercase; }
+        label { font-size: 10px; color: #aaa; text-transform: uppercase; margin-top: 15px; display: block; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin-top: 5px; background: #252a34; border: 1px solid #444; color: #fff; border-radius: 8px; box-sizing: border-box; outline: none; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button#btnGen { width: 100%; padding: 15px; background: var(--gold); color: #000; border: none; border-radius: 10px; font-weight: bold; margin-top: 20px; cursor: pointer; text-transform: uppercase; }
+        .output-box { background: #000; padding: 15px; border-radius: 10px; margin-top: 20px; display: none; border-left: 4px solid var(--gold); }
+        textarea { width: 100%; height: 80px; background: transparent; color: #00ff88; border: none; font-size: 10px; font-family: monospace; resize: none; margin-top: 10px; }
+        .copy-btn { background: #444; color: var(--gold); font-size: 9px; padding: 4px 8px; border-radius: 4px; float: right; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #333; }
+        th { color: var(--gold); }
+        .sisa-teks { color: #ffcc00; font-size: 9px; display: block; }
+        .renew-box { border-left-color: #00d4ff !important; }
+    </style>
+</head>
+<body onload="muatData()">
+
+<div class="container">
+    <div class="header">
+        <h2>RM-REMOTE MASTER</h2>
+        <small style="color: #888;">SERVER CONTROL & MONITORING</small>
+    </div>
+
+    <div style="background: rgba(255,204,0,0.05); padding: 12px; border-radius: 12px; border: 1px solid #333;">
+        <label>IP Public Server Anda</label>
+        <input type="text" id="ipS" onchange="simpanConfig()">
+        <div class="grid">
+            <div><label>Token Bot</label><input type="password" id="sTok" onchange="simpanConfig()"></div>
+            <div><label>Chat ID</label><input type="text" id="sCid" onchange="simpanConfig()"></div>
+        </div>
+    </div>
+
+    <label>Nama Mitra / Partner</label>
+    <input type="text" id="mName" placeholder="Contoh: Mitra_A">
+
+    <div class="grid">
+        <div><label>Mulai Port (Auto +100)</label><input type="number" id="pStart" value="5000"></div>
+        <div><label>Kontrak (Hari)</label><input type="number" id="mDay" value="30"></div>
+    </div>
+
+    <button id="btnGen" onclick="prosesMaster()">AKTIFKAN JALUR MITRA</button>
+
+    <div id="result" class="output-box">
+        <label>1. Script SERVER (Untuk Winbox Anda):</label>
+        <div class="copy-btn" onclick="copy('scS')">COPY</div>
+        <textarea id="scS" readonly></textarea>
+        <label style="margin-top:10px">2. Script CLIENT (Kirim ke Mitra):</label>
+        <div class="copy-btn" onclick="copy('scC')">COPY</div>
+        <textarea id="scC" readonly></textarea>
+    </div>
+
+    <div id="renewBox" class="output-box renew-box">
+        <label style="color:#00d4ff">RENEW KONTRAK MITRA (SERVER):</label>
+        <div class="copy-btn" onclick="copy('scRenew')">COPY</div>
+        <textarea id="scRenew" readonly style="color:#00d4ff"></textarea>
+    </div>
+
+    <table>
+        <thead><tr><th>Nama Mitra</th><th>Kontrak Habis</th><th>Range Port</th></tr></thead>
+        <tbody id="listBody"></tbody>
+    </table>
+
+    <button onclick="hapusSemua()" style="background:#450a0a; color:#fff; font-size:9px; margin-top:20px; padding:8px; border:none; border-radius:5px; width:100%; cursor:pointer;">HAPUS SEMUA DATABASE MITRA</button>
+</div>
+
+<script>
+    function simpanConfig() {
+        localStorage.setItem('master_ip', document.getElementById('ipS').value);
+        localStorage.setItem('master_tok', document.getElementById('sTok').value);
+        localStorage.setItem('master_cid', document.getElementById('sCid').value);
+    }
+
+    function muatData() {
+        document.getElementById('ipS').value = localStorage.getItem('master_ip') || '';
+        document.getElementById('sTok').value = localStorage.getItem('master_tok') || '';
+        document.getElementById('sCid').value = localStorage.getItem('master_cid') || '';
+        refreshTable();
+        autoPort();
+    }
+
+    function autoPort() {
+        let db = JSON.parse(localStorage.getItem('master_db') || '[]');
+        if(db.length > 0) {
+            document.getElementById('pStart').value = parseInt(db[0].ps) + 100;
+        }
+    }
+
+    function prosesMaster() {
+        const ip = document.getElementById('ipS').value;
+        const tok = document.getElementById('sTok').value;
+        const cid = document.getElementById('sCid').value;
+        const name = document.getElementById('mName').value.replace(/\s+/g, '_');
+        const start = parseInt(document.getElementById('pStart').value);
+        const day = parseInt(document.getElementById('mDay').value);
+        const end = start + 99;
+        const pass = "vpn" + Math.floor(100 + Math.random() * 899);
+        const vpnIp = "172.19." + Math.floor(Math.random() * 254) + ".2";
+
+        if(!ip || !name || !start) return alert("Mohon lengkapi data!");
+
+        let exp = new Date(); exp.setDate(exp.getDate() + day);
+        let tglSch = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
+        let tglStr = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
+
+        // SCRIPT SERVER
+        let srv = `/ppp secret add name="${name}" password="${pass}" service=l2tp remote-address=${vpnIp} local-address=172.19.0.1 comment="EXP_${tglStr}" disabled=no;\n`;
+        srv += `/ip firewall nat add action=dst-nat chain=dstnat dst-port=${start}-${end} protocol=tcp to-addresses=${vpnIp} comment="NAT_${name}" disabled=no;\n`;
+        let ev = `/ppp secret disable [find name="${name}"]; /ip firewall nat disable [find comment="NAT_${name}"]; /tool fetch url="https://api.telegram.org/bot${tok}/sendMessage?chat_id=${cid}&text=KONTRAK MITRA ${name} TELAH HABIS" keep-result=no`;
+        srv += `/system scheduler add name="EXP-MITRA-${name}" start-date=${tglSch} interval=1d on-event="${ev}"`;
+        document.getElementById('scS').value = srv;
+
+        // SCRIPT CLIENT
+        document.getElementById('scC').value = `/interface l2tp-client add connect-to=${ip} user="${name}" password="${pass}" name="RM-TUNNEL" disabled=no;`;
+
+        document.getElementById('result').style.display = "block";
+        document.getElementById('renewBox').style.display = "none";
+
+        // SIMPAN DB
+        let db = JSON.parse(localStorage.getItem('master_db') || '[]');
+        db.unshift({n:name, ps:start, pe:end, tgl:tglStr, tr:exp.getTime()});
+        localStorage.setItem('master_db', JSON.stringify(db));
+
+        document.getElementById('mName').value = "";
+        refreshTable();
+        autoPort();
+    }
+
+    function refreshTable() {
+        let db = JSON.parse(localStorage.getItem('master_db') || '[]');
+        let html = ""; let skrg = new Date().getTime();
+        db.forEach((m, idx) => {
+            let sisa = Math.ceil((m.tr - skrg) / (1000*60*60*24));
+            html += `<tr onclick="tampilRenewMaster(${idx})" style="cursor:pointer">
+                <td><b>${m.n}</b><span class="sisa-teks">${sisa > 0 ? sisa+' Hari Kontrak' : 'EXPIRED'}</span></td>
+                <td>${m.tgl}</td>
+                <td>${m.ps}-${m.pe}</td>
+            </tr>`;
+        });
+        document.getElementById('listBody').innerHTML = html;
+    }
+
+    function tampilRenewMaster(idx) {
+        let db = JSON.parse(localStorage.getItem('master_db'));
+        let m = db[idx];
+        let day = parseInt(document.getElementById('mDay').value);
+        let exp = new Date(); exp.setDate(exp.getDate() + day);
+        let tglSch = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
+        let tglStr = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
+
+        let sc = `/ppp secret enable [find name="${m.n}"]; /ppp secret set [find name="${m.n}"] comment="EXP_${tglStr}";\n`;
+        sc += `/ip firewall nat enable [find comment="NAT_${m.n}"];\n`;
+        sc += `/system scheduler set [find name="EXP-MITRA-${m.n}"] start-date=${tglSch}`;
+        
+        document.getElementById('scRenew').value = sc;
+        document.getElementById('result').style.display = "none";
+        document.getElementById('renewBox').style.display = "block";
+        window.scrollTo({top: 150, behavior: 'smooth'});
+    }
+
+    function copy(id) { document.getElementById(id).select(); document.execCommand("copy"); alert("Berhasil disalin!"); }
+    function hapusSemua() { if(confirm("Hapus semua data mitra?")) { localStorage.removeItem('master_db'); refreshTable(); } }
+</script>
+</body>
+</html>

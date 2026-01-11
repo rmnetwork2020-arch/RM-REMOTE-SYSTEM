@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>RM-MITRA PRO | Smart System</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        :root { --mitra: #00d4ff; --bg: #0f172a; --card: #1e293b; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: #fff; padding: 15px; display: flex; justify-content: center; margin: 0; }
+        .container { max-width: 480px; width: 100%; background: var(--card); border-radius: 20px; padding: 20px; border: 1px solid #334155; box-shadow: 0 10px 25px rgba(0,0,0,0.4); }
+        h2 { text-align: center; color: var(--mitra); margin: 0 0 15px 0; font-size: 20px; text-transform: uppercase; }
+        label { font-size: 10px; color: #94a3b8; text-transform: uppercase; margin-top: 12px; display: block; font-weight: bold; }
+        input { width: 100%; padding: 12px; margin-top: 5px; background: #0f172a; border: 1px solid #334155; color: #fff; border-radius: 10px; box-sizing: border-box; outline: none; font-size: 14px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        button#btnGen { width: 100%; padding: 15px; background: var(--mitra); color: #000; border: none; border-radius: 10px; font-weight: bold; margin-top: 20px; cursor: pointer; text-transform: uppercase; }
+        .output-box { background: #000; padding: 15px; border-radius: 10px; margin-top: 20px; border-left: 4px solid var(--mitra); display: none; }
+        textarea { width: 100%; height: 60px; background: transparent; color: #00ff88; border: none; font-size: 10px; font-family: monospace; resize: none; margin-top: 5px; }
+        .copy-btn { background: #334155; color: var(--mitra); font-size: 9px; padding: 4px 8px; border-radius: 4px; float: right; cursor: pointer; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 11px; }
+        th, td { text-align: left; padding: 10px; border-bottom: 1px solid #334155; }
+        .total-box { background: rgba(0, 212, 255, 0.1); padding: 15px; border-radius: 10px; margin-top: 15px; text-align: center; border: 1px solid var(--mitra); }
+        .link-remote { color: var(--mitra); text-decoration: none; font-weight: bold; font-size: 10px; display: block; background: rgba(0,212,255,0.1); padding: 5px; border-radius: 5px; text-align: center; border: 0.5px solid var(--mitra); }
+        .sisa-teks { color: #ffcc00; font-size: 9px; display: block; }
+        .renew-box { border-left-color: #ffcc00 !important; }
+    </style>
+</head>
+<body onload="muatData()">
+
+<div class="container">
+    <h2>RM-MITRA PRO</h2>
+
+    <div style="background: rgba(0,0,0,0.2); padding: 12px; border-radius: 12px; border: 1px solid #1e293b;">
+        <label>IP Publik Server Utama</label>
+        <input type="text" id="ipPub" onchange="simpanConfig()">
+        <div class="grid">
+            <div><label>Token Bot</label><input type="password" id="tok" onchange="simpanConfig()"></div>
+            <div><label>Chat ID</label><input type="text" id="cid" onchange="simpanConfig()"></div>
+        </div>
+    </div>
+
+    <label>Nama Pelanggan PPPoE</label>
+    <input type="text" id="cName" placeholder="Contoh: Bpk_Budi">
+
+    <div class="grid">
+        <div>
+            <label>Port Jatah</label>
+            <input type="number" id="cPort" placeholder="5001">
+            <small id="sisaSlot" style="color:#4ade80; font-size:9px;">Slot Terpakai: 0/100</small>
+        </div>
+        <div>
+            <label>IP Modem/ONT</label>
+            <input type="text" id="cIp" placeholder="192.168.1.1">
+        </div>
+    </div>
+
+    <div class="grid">
+        <div><label>Masa Aktif (Hari)</label><input type="number" id="cDay" value="30"></div>
+        <div><label>Harga (Rp)</label><input type="number" id="cHrg" value="25000"></div>
+    </div>
+
+    <button id="btnGen" onclick="proses()">GENERATE & SIMPAN DATA</button>
+
+    <div id="result" class="output-box">
+        <label>1. Script NAT:</label>
+        <div class="copy-btn" onclick="copy('scNAT')">COPY</div>
+        <textarea id="scNAT" readonly></textarea>
+        <label style="margin-top:10px">2. Script Scheduler:</label>
+        <div class="copy-btn" onclick="copy('scSch')">COPY</div>
+        <textarea id="scSch" readonly></textarea>
+    </div>
+
+    <div id="renewBox" class="output-box renew-box">
+        <label style="color:#ffcc00">SISTEM PERPANJANG (SCHEDULER BARU):</label>
+        <div class="copy-btn" onclick="copy('scRenew')">COPY</div>
+        <textarea id="scRenew" readonly style="color:#ffcc00"></textarea>
+    </div>
+
+    <table>
+        <thead><tr><th>Nama & Sisa</th><th>Tempo</th><th>Link Remote</th></tr></thead>
+        <tbody id="listBody"></tbody>
+    </table>
+
+    <div class="total-box">
+        <p style="font-size: 10px; margin: 0; color: #94a3b8;">TOTAL PENDAPATAN (OMZET)</p>
+        <b id="totalUang" style="font-size: 18px; color: #4ade80;">Rp 0</b>
+    </div>
+
+    <button onclick="hapusSemua()" style="background:#450a0a; color:#fff; font-size:9px; margin-top:20px; padding:8px; border:none; border-radius:5px; width:100%; cursor:pointer;">HAPUS SEMUA DATA</button>
+</div>
+
+<script>
+    function simpanConfig() {
+        localStorage.setItem('m_ip_final', document.getElementById('ipPub').value);
+        localStorage.setItem('m_tok_final', document.getElementById('tok').value);
+        localStorage.setItem('m_cid_final', document.getElementById('cid').value);
+    }
+
+    function muatData() {
+        document.getElementById('ipPub').value = localStorage.getItem('m_ip_final') || '';
+        document.getElementById('tok').value = localStorage.getItem('m_tok_final') || '';
+        document.getElementById('cid').value = localStorage.getItem('m_cid_final') || '';
+        refreshTable();
+        autoFillNext();
+    }
+
+    function autoFillNext() {
+        let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
+        if (db.length > 0) {
+            let last = db[0]; 
+            document.getElementById('cPort').value = parseInt(last.p) + 1;
+            
+            // Perbaikan Logika IP +1
+            let ipParts = last.ipM.split('.');
+            if(ipParts.length === 4) {
+                let lastNum = parseInt(ipParts[3]);
+                if(lastNum < 254) {
+                    ipParts[3] = lastNum + 1;
+                    document.getElementById('cIp').value = ipParts.join('.');
+                }
+            }
+        }
+    }
+
+    function proses() {
+        const ip = document.getElementById('ipPub').value;
+        const name = document.getElementById('cName').value.replace(/\s+/g, '_');
+        const port = document.getElementById('cPort').value;
+        const targetIp = document.getElementById('cIp').value;
+        const day = document.getElementById('cDay').value;
+        const tok = document.getElementById('tok').value;
+        const cid = document.getElementById('cid').value;
+        const hrg = document.getElementById('cHrg').value;
+
+        if(!ip || !name || !port || !targetIp) return alert("Mohon lengkapi data!");
+
+        let exp = new Date(); exp.setDate(exp.getDate() + parseInt(day));
+        let tglS = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
+        let tglC = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
+
+        document.getElementById('scNAT').value = `/ip firewall nat add action=dst-nat chain=dstnat dst-port=${port} protocol=tcp to-addresses=${targetIp} to-ports=80 comment="${name}_EXP_${tglS}"`;
+        document.getElementById('scSch').value = `/system scheduler add name="EXP-${name}" start-date=${tglC} interval=1d on-event="/ip firewall nat remove [find comment~\\"${name}\\"]; /tool fetch url=\\"https://api.telegram.org/bot${tok}/sendMessage?chat_id=${cid}&text=LAYANAN ${name} TELAH EXPIRED\\" keep-result=no"`;
+        
+        document.getElementById('result').style.display = "block";
+        document.getElementById('renewBox').style.display = "none";
+
+        let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
+        db.unshift({n: name, p: port, t: tglS, tr: exp.getTime(), ipS: ip, ipM: targetIp, h: hrg});
+        localStorage.setItem('m_db_final', JSON.stringify(db));
+
+        document.getElementById('cName').value = "";
+        refreshTable();
+        autoFillNext();
+    }
+
+    function refreshTable() {
+        let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
+        let html = ""; let total = 0;
+        let skrg = new Date().getTime();
+        
+        db.forEach((item, idx) => {
+            total += parseInt(item.h || 0);
+            let sisa = Math.ceil((item.tr - skrg) / (1000*60*60*24));
+            let link = `http://${item.ipS}:${item.p}`;
+            html += `<tr style="cursor:pointer">
+                <td onclick="tampilRenew(${idx})"><b>${item.n}</b><span class="sisa-teks">${sisa > 0 ? sisa+' Hari Lagi' : 'EXPIRED'}</span></td>
+                <td onclick="tampilRenew(${idx})">${item.t}</td>
+                <td><a href="${link}" target="_blank" class="link-remote">${item.ipS}:${item.p}</a></td>
+            </tr>`;
+        });
+        document.getElementById('listBody').innerHTML = html;
+        document.getElementById('totalUang').innerText = "Rp " + total.toLocaleString('id-ID');
+        document.getElementById('sisaSlot').innerText = `Slot Terpakai: ${db.length}/100`;
+    }
+
+    function tampilRenew(idx) {
+        let db = JSON.parse(localStorage.getItem('m_db_final'));
+        let p = db[idx];
+        let day = document.getElementById('cDay').value;
+        let exp = new Date(); exp.setDate(exp.getDate() + parseInt(day));
+        let tglS = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
+        let tglC = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
+
+        let sc = `/system scheduler set [find name="EXP-${p.n}"] start-date=${tglC};\n`;
+        sc += `/ip firewall nat set [find comment~"${p.n}"] comment="${p.n}_EXP_${tglS}"`;
+        
+        document.getElementById('scRenew').value = sc;
+        document.getElementById('result').style.display = "none";
+        document.getElementById('renewBox').style.display = "block";
+        window.scrollTo({top: 150, behavior: 'smooth'});
+    }
+
+    function copy(id) { document.getElementById(id).select(); document.execCommand("copy"); alert("Script disalin!"); }
+    function hapusSemua() { if(confirm("Hapus semua data?")) { localStorage.removeItem('m_db_final'); refreshTable(); } }
+</script>
+</body>
+</html>
