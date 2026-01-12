@@ -102,7 +102,7 @@
 
 <script>
     var indexAktif = null;
-    var lastPortUsed = 5000; // Melacak port terakhir yang benar-benar digenerate
+    var lastPortUsed = 5000; 
 
     function simpanConfig() {
         localStorage.setItem('m_ip_final', document.getElementById('ipPub').value);
@@ -122,16 +122,12 @@
     function autoFillNext() {
         let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
         let nextPort = lastPortUsed + 1;
-        
-        // Cek limit slot (berdasarkan selisih dari port awal mitra)
         let slotCount = lastPortUsed - 5000;
         if (slotCount >= 100) {
             document.getElementById('btnGen').disabled = true;
             document.getElementById('btnGen').innerText = "LIMIT 100 PORT TERCAPAI";
         }
-        
         document.getElementById('cPort').value = nextPort;
-        
         if (db.length > 0) {
             let lastEntry = db[0];
             let ipParts = lastEntry.ipM.split('.');
@@ -167,7 +163,6 @@
         let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
         db.unshift({n: name, p: port, t: tglS, tr: exp.getTime(), ipS: ip, ipM: targetIp, h: hrg});
         localStorage.setItem('m_db_final', JSON.stringify(db));
-        
         lastPortUsed = port;
         localStorage.setItem('m_last_port', lastPortUsed);
 
@@ -180,15 +175,12 @@
     function tampilkanScriptLengkap(name, port, targetIp, tglS, tglC, tok, cid) {
         document.getElementById('scNAT').value = `/ip firewall nat add action=dst-nat chain=dstnat dst-port=${port} protocol=tcp to-addresses=${targetIp} to-ports=80 comment="${name}_EXP_${tglS}"`;
         document.getElementById('scSch').value = `/system scheduler add name="EXP-${name}" start-date=${tglC} interval=1d on-event="/ip firewall nat remove [find comment~\\"${name}\\"]; /tool fetch url=\\"https://api.telegram.org/bot${tok}/sendMessage?chat_id=${cid}&text=LAYANAN ${name} TELAH EXPIRED\\" keep-result=no"`;
-        
         document.getElementById('boxScriptUtama').style.display = "block";
         document.getElementById('boxRenewScript').style.display = "none";
         document.getElementById('result').style.display = "block";
     }
 
-    function tutupBoxScript() {
-        document.getElementById('result').style.display = "none";
-    }
+    function tutupBoxScript() { document.getElementById('result').style.display = "none"; }
 
     function refreshTable() {
         let db = JSON.parse(localStorage.getItem('m_db_final') || '[]');
