@@ -22,6 +22,12 @@
         th { color: var(--gold); }
         .sisa-teks { color: #ffcc00; font-size: 9px; display: block; }
         .renew-box { border-left-color: #00d4ff !important; }
+        .btn-del { color: #ff4d4d; font-weight: bold; cursor: pointer; margin-right: 8px; }
+        .rekap-box { background: #252a34; padding: 15px; border-radius: 12px; margin-top: 20px; border-left: 4px solid var(--gold); }
+        .rekap-row { display: flex; justify-content: space-between; font-size: 14px; font-weight: bold; color: var(--gold); }
+        .info-port { font-size: 8px; color: #00d4ff; display: block; margin-top: 2px; }
+        .btn-renew-action { background: #00d4ff; color: #000; margin-top: 10px; font-size: 10px; padding: 10px; width: 100%; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .btn-close { background: #450a0a; color: #fff; font-size: 9px; padding: 8px; border-radius: 6px; width: 100%; border: none; margin-top: 10px; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body onload="muatData()">
@@ -34,7 +40,7 @@
 
     <div style="background: rgba(255,204,0,0.05); padding: 12px; border-radius: 12px; border: 1px solid #333;">
         <label>IP Public Server Anda</label>
-        <input type="text" id="ipS" onchange="simpanConfig()">
+        <input type="text" id="ipS" placeholder="41.216.190.85" onchange="simpanConfig()">
         <div class="grid">
             <div><label>Token Bot</label><input type="password" id="sTok" onchange="simpanConfig()"></div>
             <div><label>Chat ID</label><input type="text" id="sCid" onchange="simpanConfig()"></div>
@@ -45,36 +51,51 @@
     <input type="text" id="mName" placeholder="Contoh: Mitra_A">
 
     <div class="grid">
-        <div><label>Mulai Port (Auto +100)</label><input type="number" id="pStart" value="5000"></div>
         <div><label>Kontrak (Hari)</label><input type="number" id="mDay" value="30"></div>
+        <div><label>Harga Sewa (Rp)</label><input type="number" id="mPrice" value="100000"></div>
     </div>
+    
+    <label>Mulai Port (Auto +100)</label>
+    <input type="number" id="pStart" value="5000">
 
     <button id="btnGen" onclick="prosesMaster()">AKTIFKAN JALUR MITRA</button>
 
     <div id="result" class="output-box">
-        <label>1. Script SERVER (Untuk Winbox Anda):</label>
-        <div class="copy-btn" onclick="copy('scS')">COPY</div>
-        <textarea id="scS" readonly></textarea>
-        <label style="margin-top:10px">2. Script CLIENT (Kirim ke Mitra):</label>
-        <div class="copy-btn" onclick="copy('scC')">COPY</div>
-        <textarea id="scC" readonly></textarea>
-    </div>
-
-    <div id="renewBox" class="output-box renew-box">
-        <label style="color:#00d4ff">RENEW KONTRAK MITRA (SERVER):</label>
-        <div class="copy-btn" onclick="copy('scRenew')">COPY</div>
-        <textarea id="scRenew" readonly style="color:#00d4ff"></textarea>
+        <div id="boxScriptUtama">
+            <label>1. Script SERVER (VPN & NAT):</label>
+            <div class="copy-btn" onclick="copy('scS')">COPY</div>
+            <textarea id="scS" readonly></textarea>
+            <label style="margin-top:10px">2. Script CLIENT (Kirim ke Mitra):</label>
+            <div class="copy-btn" onclick="copy('scC')">COPY</div>
+            <textarea id="scC" readonly></textarea>
+            <label style="margin-top:10px">3. Script SCHEDULER (Limit Waktu):</label>
+            <div class="copy-btn" onclick="copy('scSch')">COPY</div>
+            <textarea id="scSch" readonly></textarea>
+        </div>
+        <div id="boxRenewScript" style="display:none;">
+            <label style="color:#00d4ff">RENEW KONTRAK MITRA (UPDATE SERVER):</label>
+            <div class="copy-btn" onclick="copy('scRenewSingle')">COPY</div>
+            <textarea id="scRenewSingle" readonly style="color:#00d4ff"></textarea>
+        </div>
+        <button id="btnTriggerRenew" class="btn-renew-action" style="display:none;" onclick="buatScriptPerpanjang()">BUAT SCRIPT PERPANJANG</button>
+        <button class="btn-close" onclick="tutupBoxScript()">TUTUP KOTAK SCRIPT</button>
     </div>
 
     <table>
-        <thead><tr><th>Nama Mitra</th><th>Kontrak Habis</th><th>Range Port</th></tr></thead>
+        <thead><tr><th>No. Nama Mitra</th><th>Kontrak</th><th>Range Port & Harga</th></tr></thead>
         <tbody id="listBody"></tbody>
     </table>
+
+    <div class="rekap-box">
+        <div class="rekap-row"><span>Total Pendapatan:</span><span id="totalOmzet">Rp 0</span></div>
+    </div>
 
     <button onclick="hapusSemua()" style="background:#450a0a; color:#fff; font-size:9px; margin-top:20px; padding:8px; border:none; border-radius:5px; width:100%; cursor:pointer;">HAPUS SEMUA DATABASE MITRA</button>
 </div>
 
 <script>
+    var indexAktif = null;
+
     function simpanConfig() {
         localStorage.setItem('master_ip', document.getElementById('ipS').value);
         localStorage.setItem('master_tok', document.getElementById('sTok').value);
@@ -92,7 +113,10 @@
     function autoPort() {
         let db = JSON.parse(localStorage.getItem('master_db') || '[]');
         if(db.length > 0) {
-            document.getElementById('pStart').value = parseInt(db[0].ps) + 100;
+            let maxPort = Math.max(...db.map(m => parseInt(m.ps)));
+            document.getElementById('pStart').value = maxPort + 100;
+        } else {
+            document.getElementById('pStart').value = 5000;
         }
     }
 
@@ -103,9 +127,14 @@
         const name = document.getElementById('mName').value.replace(/\s+/g, '_');
         const start = parseInt(document.getElementById('pStart').value);
         const day = parseInt(document.getElementById('mDay').value);
+        const price = document.getElementById('mPrice').value;
         const end = start + 99;
-        const pass = "vpn" + Math.floor(100 + Math.random() * 899);
-        const vpnIp = "172.19." + Math.floor(Math.random() * 254) + ".2";
+        const pass = name + "123";
+
+        let db = JSON.parse(localStorage.getItem('master_db') || '[]');
+        let nextX = Math.floor(db.length / 253);
+        let nextY = (db.length % 253) + 2;
+        const vpnIp = "172.19." + nextX + "." + nextY;
 
         if(!ip || !name || !start) return alert("Mohon lengkapi data!");
 
@@ -113,63 +142,88 @@
         let tglSch = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
         let tglStr = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
 
-        // SCRIPT SERVER
-        let srv = `/ppp secret add name="${name}" password="${pass}" service=l2tp remote-address=${vpnIp} local-address=172.19.0.1 comment="EXP_${tglStr}" disabled=no;\n`;
-        srv += `/ip firewall nat add action=dst-nat chain=dstnat dst-port=${start}-${end} protocol=tcp to-addresses=${vpnIp} comment="NAT_${name}" disabled=no;\n`;
-        let ev = `/ppp secret disable [find name="${name}"]; /ip firewall nat disable [find comment="NAT_${name}"]; /tool fetch url="https://api.telegram.org/bot${tok}/sendMessage?chat_id=${cid}&text=KONTRAK MITRA ${name} TELAH HABIS" keep-result=no`;
-        srv += `/system scheduler add name="EXP-MITRA-${name}" start-date=${tglSch} interval=1d on-event="${ev}"`;
-        document.getElementById('scS').value = srv;
+        tampilkanScriptLengkap(name, pass, vpnIp, start, end, tglStr, tglSch, tok, cid, ip);
 
-        // SCRIPT CLIENT
-        document.getElementById('scC').value = `/interface l2tp-client add connect-to=${ip} user="${name}" password="${pass}" name="RM-TUNNEL" disabled=no;`;
-
-        document.getElementById('result').style.display = "block";
-        document.getElementById('renewBox').style.display = "none";
-
-        // SIMPAN DB
-        let db = JSON.parse(localStorage.getItem('master_db') || '[]');
-        db.unshift({n:name, ps:start, pe:end, tgl:tglStr, tr:exp.getTime()});
+        db.unshift({n:name, ps:start, pe:end, tgl:tglStr, tr:exp.getTime(), hrg: price, ip: ip, vIp: vpnIp});
         localStorage.setItem('master_db', JSON.stringify(db));
 
         document.getElementById('mName').value = "";
+        document.getElementById('btnTriggerRenew').style.display = "none";
         refreshTable();
         autoPort();
     }
 
+    function tampilkanScriptLengkap(n, pass, vpnIp, ps, pe, tglStr, tglSch, tok, cid, ipPub) {
+        document.getElementById('scS').value = `/ppp secret add name="${n}" password="${pass}" service=l2tp remote-address=${vpnIp} local-address=172.19.0.1 comment="EXP_${tglStr}";\n/ip firewall nat add action=dst-nat chain=dstnat dst-port=${ps}-${pe} protocol=tcp to-addresses=${vpnIp} comment="NAT_${n}";`;
+        document.getElementById('scC').value = `/interface l2tp-client add connect-to=${ipPub} user="${n}" password="${pass}" name="RM-TUNNEL" disabled=no;`;
+        let ev = `/ppp secret disable [find name="${n}"]; /ip firewall nat disable [find comment=\"NAT_${n}\"]; /tool fetch url=\"https://api.telegram.org/bot${tok}/sendMessage?chat_id=${cid}&text=KONTRAK MITRA ${n} TELAH HABIS\" keep-result=no`;
+        document.getElementById('scSch').value = `/system scheduler add name=\"EXP-MITRA-${n}\" start-date=${tglSch} interval=1d on-event=\"${ev}\"`;
+        document.getElementById('boxScriptUtama').style.display = "block";
+        document.getElementById('boxRenewScript').style.display = "none";
+        document.getElementById('result').style.display = "block";
+    }
+
+    function tutupBoxScript() { document.getElementById('result').style.display = "none"; }
+
     function refreshTable() {
         let db = JSON.parse(localStorage.getItem('master_db') || '[]');
-        let html = ""; let skrg = new Date().getTime();
+        let html = ""; let skrg = new Date().getTime(); let total = 0;
         db.forEach((m, idx) => {
+            total += parseInt(m.hrg || 0);
             let sisa = Math.ceil((m.tr - skrg) / (1000*60*60*24));
-            html += `<tr onclick="tampilRenewMaster(${idx})" style="cursor:pointer">
-                <td><b>${m.n}</b><span class="sisa-teks">${sisa > 0 ? sisa+' Hari Kontrak' : 'EXPIRED'}</span></td>
-                <td>${m.tgl}</td>
-                <td>${m.ps}-${m.pe}</td>
+            html += `<tr>
+                <td onclick=\"panggilDataLengkap(${idx})\"><span class=\"btn-del\" onclick=\"hapusSatu(${idx})\">X</span> ${idx + 1}. <b>${m.n}</b><span class=\"sisa-teks\">${sisa > 0 ? sisa+' Hari' : 'EXP'}</span></td>
+                <td onclick=\"panggilDataLengkap(${idx})\">${m.tgl}</td>
+                <td>Rp ${parseInt(m.hrg).toLocaleString()}<span class=\"info-port\">VPN: ${m.vIp} | Port: ${m.ps}-${m.pe}</span></td>
             </tr>`;
         });
         document.getElementById('listBody').innerHTML = html;
+        document.getElementById('totalOmzet').innerText = "Rp " + total.toLocaleString();
     }
 
-    function tampilRenewMaster(idx) {
+    function panggilDataLengkap(idx) {
         let db = JSON.parse(localStorage.getItem('master_db'));
         let m = db[idx];
+        let tok = document.getElementById('sTok').value;
+        let cid = document.getElementById('sCid').value;
+        let pass = m.n + "123";
+        let tglObj = new Date(m.tr);
+        let tglSch = tglObj.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
+        tampilkanScriptLengkap(m.n, pass, m.vIp, m.ps, m.pe, m.tgl, tglSch, tok, cid, m.ip);
+        indexAktif = idx;
+        document.getElementById('btnTriggerRenew').style.display = "block";
+        window.scrollTo({top: 150, behavior: 'smooth'});
+    }
+
+    function buatScriptPerpanjang() {
+        let db = JSON.parse(localStorage.getItem('master_db'));
+        let m = db[indexAktif];
         let day = parseInt(document.getElementById('mDay').value);
         let exp = new Date(); exp.setDate(exp.getDate() + day);
         let tglSch = exp.toLocaleDateString('en-US', {month:'short', day:'2-digit', year:'numeric'}).toLowerCase().replace(/ /g, '/');
         let tglStr = exp.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'}).replace(/ /g, '-');
-
-        let sc = `/ppp secret enable [find name="${m.n}"]; /ppp secret set [find name="${m.n}"] comment="EXP_${tglStr}";\n`;
-        sc += `/ip firewall nat enable [find comment="NAT_${m.n}"];\n`;
-        sc += `/system scheduler set [find name="EXP-MITRA-${m.n}"] start-date=${tglSch}`;
-        
-        document.getElementById('scRenew').value = sc;
-        document.getElementById('result').style.display = "none";
-        document.getElementById('renewBox').style.display = "block";
-        window.scrollTo({top: 150, behavior: 'smooth'});
+        document.getElementById('scRenewSingle').value = `/ppp secret enable [find name="${m.n}"]; /ppp secret set [find name="${m.n}"] comment="EXP_${tglStr}";\n/ip firewall nat enable [find comment="NAT_${m.n}"];\n/system scheduler set [find name="EXP-MITRA-${m.n}"] start-date=${tglSch}`;
+        document.getElementById('boxScriptUtama').style.display = "none";
+        document.getElementById('boxRenewScript').style.display = "block";
+        document.getElementById('btnTriggerRenew').style.display = "none";
+        m.tgl = tglStr; m.tr = exp.getTime();
+        db[indexAktif] = m;
+        localStorage.setItem('master_db', JSON.stringify(db));
+        refreshTable();
     }
 
-    function copy(id) { document.getElementById(id).select(); document.execCommand("copy"); alert("Berhasil disalin!"); }
-    function hapusSemua() { if(confirm("Hapus semua data mitra?")) { localStorage.removeItem('master_db'); refreshTable(); } }
+    function hapusSatu(idx) {
+        if(confirm("Hapus mitra ini?")) {
+            let db = JSON.parse(localStorage.getItem('master_db'));
+            db.splice(idx, 1);
+            localStorage.setItem('master_db', JSON.stringify(db));
+            refreshTable();
+            autoPort();
+        }
+    }
+
+    function copy(id) { document.getElementById(id).select(); document.execCommand("copy"); alert("Disalin!"); }
+    function hapusSemua() { if(confirm("Hapus semua data mitra?")) { localStorage.removeItem('master_db'); refreshTable(); autoPort(); } }
 </script>
 </body>
 </html>
